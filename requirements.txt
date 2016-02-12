@@ -6,6 +6,6 @@ gunicorn==19.4.5
 lxml==3.5.0
 numpy==1.10.4
 psycopg2==2.6.1
-scikit-learn==0.17
 scipy==0.17.0
+scikit-learn==0.17
 wheel==0.26.0

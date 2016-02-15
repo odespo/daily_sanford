@@ -40,6 +40,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
+# Checks if we have a local environment
 try:
     from local_settings import *
 except Exception as e:

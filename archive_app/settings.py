@@ -14,7 +14,7 @@ import os
 import dj_database_url
 
 db_from_env = dj_database_url.config(conn_max_age=500)
-DATABASES['default'].update(db_from_env)
+DATABASES = { 'default' : db_from_env}
 ######################################################### SIMILARITY OPTIMIZATION PARAMETERS
 
 K_SIMILAR_ARTICLES = 4 # The max # of similar archived articles to return for a given current article

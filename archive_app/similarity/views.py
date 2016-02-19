@@ -28,42 +28,53 @@ import scipy.sparse.linalg
 # - Thresholding
 
 # Creates tf-idf matrix out of all archived files
+# Returns the matrix, the vectorizer to interact with, and ampping from row number to pk for archived articles
+# The matrix is a document-term matrix where each row represents a document
 def create_tf_idf_mat():
     archived_articles = ArchivedArticle.objects.all()
     
     doc_list = []
+    doc_id_to_pk = {}
+    count = 0
     for article in archived_articles:
         total_text = article.content.body + ' '.join([article.content.title]*archive_app.settings.K_SIMILAR_ARTICLES) # Add in article titles
         doc_list.append(total_text)
+        doc_id_to_pk[count] = article.pk
+        count += 1
     
     vectorizer = TfidfVectorizer(min_df=1, smooth_idf = True, stop_words='english')
     arr = vectorizer
-    return (vectorizer.fit_transform(doc_list), vectorizer)
+    return (vectorizer.fit_transform(doc_list), vectorizer, doc_id_to_pk)
 
 # Returns k most similar archived articles in terms of their pks
 # Assumes k is less than list of archived articles -> otherwise would be pretty stupid 
 # Arbitrarily breaks ties
+# Converts the given target document (a string) to the tf-idf vector then finds the documents with the highest cosine similarity
+# Returns list of (matrix id, rating)
 def find_k_most_similar(target_doc, tf_idf_mat, vectorizer, k):
     # Transform the doc
     transformed_doc = vectorizer.transform([target_doc]).toarray()
     
     l2_norm_doc = None
     
+    # Get the L2 Norm of the document
     try:
         l2_norm_doc = scipy.sparse.linalg.norm(transformed_doc)
     except:
         l2_norm_doc = np.linalg.norm(transformed_doc)
 
+    # Get document to target document dot products
     dots = tf_idf_mat.dot(transformed_doc.transpose())
     
     sims = []
+
     # Calculate cosine similarities
     for i in range(dots.shape[0]):
         cosine_sim = dots[i, 0] / ( l2_norm_doc * scipy.sparse.linalg.norm(tf_idf_mat[i,:]) )
         sims.append((i, cosine_sim))
     
     sorted_ratings = np.sort(np.array(sims, dtype=[("Index", int), ("Rating", float)]), order=["Rating", "Index"], ) # in ascending order, so have to work backwords
-    print sorted_ratings
+    
     # Retrieve Best
     best_articles = []
     for i in range(k):
@@ -77,7 +88,7 @@ def find_k_most_similar(target_doc, tf_idf_mat, vectorizer, k):
 # Update/Create similarity relationships for a list of current article pk's
 def createSimilarityForPkList(pk_list):
     # First calculate tf-idf matrix.
-    tf_idf_mat, vectorizer = create_tf_idf_mat()
+    tf_idf_mat, vectorizer, id_mapping = create_tf_idf_mat()
     
     for current in CurrentArticle.objects.filter(pk__in=pk_list):
         try:
@@ -89,6 +100,7 @@ def createSimilarityForPkList(pk_list):
             # Find and add in new recs
             recs = find_k_most_similar(whole_text,  tf_idf_mat, vectorizer, archive_app.settings.K_SIMILAR_ARTICLES)
             for pk, rating in recs:
+                pk = id_mapping[pk] # Get actual pk
                 current.archived_articles.add(ArchivedArticle.objects.get(pk=pk))
         except:
             print "There was an error calculating recs for an article" # TODO: add more info
@@ -305,18 +317,43 @@ def update_current_article_db(url):
     
     # Create Models out of information
     createCurrentArticles(datasets, True)
+
+    # Make sure only has the limit # of models in CurrentArticle DB
+    # TODO: test please
+    # If you decide to just keep everything in storage, then comment out or delete the rest of this functio
+    num_records = CurrentArticle.objects.count()
+    
+    latest_id = CurrentArticle.objects.latest('pk')
+    id_delete = latest_id.id - archive_app.settings.CURRENT_ARTICLE_LIMIT
+
+    while num_records > archive_app.settings.CURRENT_ARTICLE_LIMIT:
+        article = CurrentArticle.objects.filter(pk=id_delete)
+        if len(article) != 0:
+            article[0].delete()
+            num_records = num_records - 1
+        id_delete = id_delete - 1
+        
     
 
 ############################################################################################# GET + POST Requests
 
-# TODO: security concerns???? - could ask for API key at end
+# Response to a GET request to retrieve the recommended archived articles for a given current article
+# Takes in the article's wordpress id and returns a comma seperated list of the recommended articles (by their word press ids)
+# Returns an emtpy string if the id doesn't exist in the db or no recs were calculated
 def getSimilarArchived(request, article_wpId):
+    api_key = request.GET.get('key', False)
+
+    # Check Security
+    if not api_key or api_key != archive_app.settings.SECRET:
+        return HttpResponse("")
+
     context = RequestContext(request)
+
     # Find the article we want
     did_find = CurrentArticle.objects.filter(wordpress_id=article_wpId)
     if did_find.count() == 0:
         # Did not find
-        return HttpResponse("no id in db") # TODO: maybe change
+        return HttpResponse("")
 
     article = did_find[0]
     
@@ -337,11 +374,14 @@ def getSimilarArchived(request, article_wpId):
         rec_str = ",".join(rec_ids)
         return HttpResponse(rec_str)
 
-
+# Response to request to update the current articles
 def updateCurrentArticles(request):
-    url = "http://www.stanforddaily.com/old-posts-recent/" # TODO: probs put into security
-    is_good = update_current_article_db(url)
-    if not is_good:
-        return HttpResponse("failed...check the data and code or try again")
-    return HttpResponse("succeeded, but some models may not have been added") # TODO: probably make more sure haha
+    api_key = request.GET.get('key', False)
 
+    # Check Security
+    if not api_key or api_key != archive_app.settings.SECRET:
+        return HttpResponse("")
+
+    url = "http://www.stanforddaily.com/old-posts-recent/"
+    update_current_article_db(url)
+    return HttpResponse("")

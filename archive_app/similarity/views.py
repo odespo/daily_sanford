@@ -241,7 +241,7 @@ def createCurrentArticles(article_list, include_recs=True): # Takes in list of (
 
     pk_list = []
     # Create the current articles
-    for wid, title, author, date, tags, text in article_list:
+    for wid, title, author, date, tags, text in reversed(article_list): # reverses list so that recent ones have higher pks
         article = None
         try:
             # First check if already exists

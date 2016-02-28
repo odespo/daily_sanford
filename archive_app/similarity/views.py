@@ -37,7 +37,7 @@ def create_tf_idf_mat():
     doc_id_to_pk = {}
     count = 0
     for article in archived_articles:
-        total_text = article.content.body + ' '.join([article.content.title]*archive_app.settings.K_SIMILAR_ARTICLES) # Add in article titles
+        total_text = article.content.body + ' '.join([article.content.title]*archive_app.settings.ARTICLE_TITLE_MULTIPLICITY) # Add in article titles
         doc_list.append(total_text)
         doc_id_to_pk[count] = article.pk
         count += 1
@@ -96,7 +96,7 @@ def createSimilarityForPkList(pk_list):
             for item in current.archived_articles.all():
                 current.archived_articles.remove(item)
             
-            whole_text = current.content.body + ' '.join([current.content.title]*archive_app.settings.K_SIMILAR_ARTICLES) # Add in article titles
+            whole_text = current.content.body + ' '.join([current.content.title]*archive_app.settings.ARTICLE_TITLE_MULTIPLICITY) # Add in article titles
             # Find and add in new recs
             recs = find_k_most_similar(whole_text,  tf_idf_mat, vectorizer, archive_app.settings.K_SIMILAR_ARTICLES)
             for pk, rating in recs:

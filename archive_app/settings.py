@@ -23,7 +23,7 @@ SECRET = os.environ.get('SECRET', 'my-default-secret-key') # TODO: remove defaul
 ######################################################### SIMILARITY OPTIMIZATION PARAMETERS
 
 K_SIMILAR_ARTICLES = 4 # The max # of similar archived articles to return for a given current article
-ARTICLE_TITLE_MULTIPLICITY = 2 # The # of times to add the article title to a given document's word set
+ARTICLE_TITLE_MULTIPLICITY = 10 # The # of times to add the article title to a given document's word set
 SIMILARITY_THRESHOLD = .1 # The minimum similarity score articles must have to be recommended
 CURRENT_ARTICLE_LIMIT = 1000 # Limit on # of records to keep at one time
 
